@@ -1,31 +1,29 @@
 from flask import Flask, send_from_directory
-from flask_socketio import SocketIO, emit
 import threading
 import time
+import asyncio
+import websockets
+import json
 
 app = Flask(__name__)
-socketio = SocketIO(app, cors_allowed_origins="*")
 counter = 0
 
 @app.route('/')
 def serve_static_index():
     return send_from_directory('public', 'index.html')
 
-def send_counter():
+async def send_counter(websocket, path):
     global counter
     while True:
-        time.sleep(1)
-        socketio.emit('counter', {'value': counter})
+        await asyncio.sleep(1)
+        await websocket.send(json.dumps({'counter': counter}))
         counter += 1
 
-@socketio.on('connect')
-def test_connect():
-    emit('connected', {'data': 'Connected'})
-    threading.Thread(target=send_counter).start()
-
-@socketio.on('disconnect')
-def test_disconnect():
-    print('Client disconnected')
+def run_websocket_server():
+    start_server = websockets.serve(send_counter, "0.0.0.0", 8080)
+    asyncio.get_event_loop().run_until_complete(start_server)
+    asyncio.get_event_loop().run_forever()
 
 if __name__ == '__main__':
-    socketio.run(app, host='0.0.0.0', port=8080)
+    threading.Thread(target=run_websocket_server).start()
+    app.run(host='0.0.0.0', port=8081)
